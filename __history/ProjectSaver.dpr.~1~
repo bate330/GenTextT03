@@ -1,0 +1,15 @@
+program ProjectSaver;
+
+uses
+  Vcl.Forms,
+  Saver in 'Saver.pas' {Form3},
+  c_EbsTxtSaver in 'c_EbsTxtSaver.pas';
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TForm3, Form3);
+  Application.Run;
+end.

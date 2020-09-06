@@ -1,0 +1,65 @@
+unit f_Saver;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, c_EbsTxtSaver;
+
+type
+  TForm3 = class(TForm)
+    SaveButton: TButton;
+    SourceEdit: TEdit;
+    procedure FormCreate(Sender: TObject);
+    procedure SaveButtonClick(Sender: TObject);
+  private
+    Saver: TSaver;
+  public
+    { Public declarations }
+  end;
+
+var
+  Form3: TForm3;
+
+implementation uses EbsTxt;
+
+{$R *.dfm}
+
+procedure TForm3.FormCreate(Sender: TObject);
+begin
+  Saver:=TSaver.Create;
+end;
+
+procedure TForm3.SaveButtonClick(Sender: TObject);
+var
+  ATxt: TEbsTxt;
+//  AField: TEbsTextField;
+
+begin
+  ATxt := TEbsTxt.Create(nil);
+  //try
+//    AField := TEbsTextField.Create(ATxt);
+//    AField.Text := 'Abc';
+//    AField.FontId := 1;
+//    ATxt.Fields.Add(AField);
+      ATxt.LoadFromFile('D:\InputFileBarcode.t03');
+      //showmessage(ATxt.TxtName);
+      //if ATxt.Fields[0] is TEbsTextField then begin
+       //ShowMessage( (ATxt.Fields[0] as TEbsTextField).Text );
+       //ShowMessage( inttostr(ATxt.Fields.Width) );
+      //end;
+    //showmessage(ATxt.Fields.Items);
+      ATxt.SaveToFile('D:\OutputFile.t03');
+
+//    Saver.FileName:=SourceEdit.Text;
+//    Saver.Txt := ATxt;
+//    Saver.SaveToFile;
+
+  //finally
+  //  ATxt.Free;
+//  end;
+
+
+end;
+
+end.

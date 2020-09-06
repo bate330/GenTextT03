@@ -1,0 +1,37 @@
+unit c_EbsTxtSaver;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes;
+
+type
+  TSaver = class
+    private
+    FFileName: string;
+    procedure SetFileName(const Value: string);
+
+
+    public
+    procedure SaveToFile;
+    property FileName: string read FFileName write SetFileName;
+
+  end;
+
+implementation
+
+
+
+{ TSaver }
+
+procedure TSaver.SetFileName(const Value: string);
+begin
+  FFileName := Value;
+end;
+
+procedure TSaver.SaveToFile;
+begin
+
+end;
+
+end.

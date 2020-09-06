@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2020/08/19 09:06:29.000.254,=D:\Moje dokumenty\Embarcadero\Studio\Projects\Unit3.pas</Transaction>
+    <Transaction>2020/08/19 09:08:10.000.471,=D:\Moje dokumenty\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2020/08/19 09:08:28.000.815,D:\Moje dokumenty\Embarcadero\Studio\Projects\Unit1.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsTxtSaver.pas</Transaction>
+    <Transaction>2020/08/19 09:08:39.000.635,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsTxtSaver.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\c_EbsTxtSaver.pas</Transaction>
+    <Transaction>2020/08/19 09:12:34.000.863,D:\Moje dokumenty\Embarcadero\Studio\Projects\Unit3.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Saver.pas</Transaction>
+    <Transaction>2020/08/19 09:12:34.000.863,D:\Moje dokumenty\Embarcadero\Studio\Projects\Unit3.dfm=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Saver.dfm</Transaction>
+    <Transaction>2020/08/19 09:12:38.000.729,D:\Moje dokumenty\Embarcadero\Studio\Projects\c_EbsTxtSaver.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\c_EbsTxtSaver.pas</Transaction>
+    <Transaction>2020/08/19 09:12:48.000.169,D:\Moje dokumenty\Embarcadero\Studio\Projects\Project4.dproj=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\ProjectSaver.dproj</Transaction>
+    <Transaction>2020/08/19 09:24:38.000.272,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Saver.dfm=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\f_Saver.dfm</Transaction>
+    <Transaction>2020/08/19 09:24:38.000.272,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Saver.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\f_Saver.pas</Transaction>
+    <Transaction>2020/08/26 15:51:21.000.182,=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Unit1.pas</Transaction>
+    <Transaction>2020/08/26 15:54:13.000.679,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\EbsT03Saver.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\c_EbsTxtSaver.pas</Transaction>
+    <Transaction>2020/08/28 10:08:17.000.654,=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Unit1.pas</Transaction>
+    <Transaction>2020/08/28 10:12:41.000.176,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\EbsT03Loader.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Unit1.pas</Transaction>
+    <Transaction>2020/08/28 13:21:20.000.584,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\f_Main.dfm=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\f_Saver.dfm</Transaction>
+    <Transaction>2020/08/28 13:21:20.000.584,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\f_Main.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\f_Saver.pas</Transaction>
+    <Transaction>2020/08/28 15:05:34.000.745,=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Unit1.pas</Transaction>
+    <Transaction>2020/08/28 15:05:58.000.233,D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\EbsT03LoaderTx.pas=D:\Moje dokumenty\Embarcadero\Studio\Projects\EbsSaver\Unit1.pas</Transaction>
+  </Transactions>
+</BorlandProject>
