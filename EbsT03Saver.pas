@@ -88,7 +88,15 @@ var
 i: integer;
 begin
   for i:=0 to ATxt.Fields.Count-1 do begin
-    if i>=1 then AStream.WriteData($00);
+        if (i>=1) then begin
+         AStream.WriteData(ATxt.Fields.FirstFieldLength[i-1]);
+         AStream.Seek(11, soFromCurrent);
+         if ATxt.Fields.Items[i].ClassType=TEbsTextField then WriteByte(AStream, $00);;
+         if ATxt.Fields.Items[i].ClassType=TEbsBarcodeField then WriteByte(AStream, $01);;
+         if ATxt.Fields.Items[i].ClassType=TEbsGraphicField then WriteByte(AStream, $02);;
+         if ATxt.Fields.Items[i].ClassType=TEbsOtherTxtField then WriteByte(AStream, $03);;
+         AStream.Seek(-12, soFromCurrent);
+    end;
     AStream.WriteData(ATxt.Fields.Items[i].Left);
     AStream.WriteData(ATxt.Fields.Items[i].Width);
     AStream.WriteData(ATxt.Fields.Items[i].Top);

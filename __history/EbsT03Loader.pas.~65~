@@ -1,0 +1,356 @@
+unit EbsT03Loader;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, EbsTxt, EbsTypes, Bytes;
+
+type
+  TEbsT03Loader = class
+  private
+//    FFileName: string;
+//    procedure SetFileName(const Value: string);
+    procedure Clear(AFields: TEbsFields);
+    procedure LoadEdgraf(AStream: TStream; ATxt: TEbsTxt);
+    procedure LoadPosition(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField;AByte: Byte);
+    procedure LoadTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    procedure LoadBar(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
+    procedure LoadGraph(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
+    procedure LoadOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    function ToBarcodeType(const AValue: Byte): TEbsBarcodeType;
+    function ToSpecReg(const AByte: Byte): TEbsSpecReg;
+
+
+  public
+    procedure LoadFromFile(AFileName: string; ATxt: TEbsTxt);
+//    property FileName: string read FFileName write SetFileName;
+
+  end;
+
+//==============================================================================
+implementation uses System.Types, DateUtils, Streams, BmpFile, Bmp1BitImage,
+  Generics.Defaults, EbsFieldLeftComparer;
+
+//==============================================================================
+{ TEbsT03Loader }
+
+//==============================================================================
+
+//procedure TEbsT03Loader.SetFileName(const Value: string);
+//begin
+//  FFileName := Value;
+//end;
+//==============================================================================
+
+procedure TEbsT03Loader.LoadFromFile(AFileName: string; ATxt: TEbsTxt);
+var
+  AExt: string;
+  AStream: TStream;
+begin
+  AStream := TFileStream.Create(AFileName, fmOpenRead);
+  try
+    AExt := ExtractFileExt(AFileName);
+    if LowerCase(AExt) = '.t03' then LoadEdgraf(AStream, ATxt);
+    ATxt.TxtName := ExtractFileName(AFileName);
+  finally
+    FreeAndNil(AStream);
+  end;
+
+end;
+//==============================================================================
+
+procedure TEbsT03Loader.LoadEdgraf(AStream: TStream; ATxt: TEbsTxt);
+var
+  AByte: Byte;
+  AFieldLength: Byte;
+  ATxtHeightByte: Byte;
+  AField: TEbsField;
+  AFieldLengthArray: TBytes;
+//  AFields: TEbsFields;
+
+begin
+  if Assigned(ATxt.Fields) then
+    Clear(ATxt.Fields)
+  else
+    ATxt.Fields := TEbsFields.Create(ATxt);
+
+  {typ drukarki - pomijamy}
+  AStream.Seek(1, soFromCurrent);
+  AStream.Read(ATxtHeightByte, 1);
+  ATxt.Fields.TxtHeight := ATxtHeightByte;
+
+  while AStream.Position+5 < AStream.Size do
+  begin
+    AStream.Seek(10, soFromCurrent);
+    AStream.Read(AByte, 1);
+    AStream.Seek(-11, soFromCurrent);
+
+    AField := nil;
+    case AByte of
+      0: AField := TEbsTextField.Create(ATxt.Fields);
+      1: AField := TEbsBarcodeField.Create(ATxt.Fields);
+      2: AField := TEbsGraphicField.Create(ATxt.Fields);
+      3: AField := TEbsOtherTxtField.Create(ATxt.Fields);
+    end;
+
+    if Assigned(AField) then
+    begin
+      //AField.LoadEdgraf(AStream);
+      LoadPosition(AStream,ATxt,AField,AByte);
+      AStream.Seek(1, soFromCurrent);
+      if AByte=1 then begin
+        AStream.Read(AFieldLength, 1);
+        SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
+        AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
+        ATxt.Fields.FirstFieldLength := AFieldLengthArray;
+      end;
+      //SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
+      //AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
+
+      //ATxt.Fields.FirstFieldLength[ATxt.Fields.Count] := AFieldLength;
+      //ATxt.Fields.SetLengthFieldLength(ATxt.Fields.FirstFieldLength,ATxt.Fields.Count+1);
+      ATxt.Fields.Add(AField);
+      AStream.Seek(-1, soFromCurrent);
+    end;
+    //AStream.Seek(1, soFromCurrent);
+
+  end;
+
+end;
+//==============================================================================
+
+procedure TEbsT03Loader.Clear(AFields: TEbsFields);
+begin
+ AFields.Clear;
+end;
+//==============================================================================
+
+procedure TEbsT03Loader.LoadPosition(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField; AByte: Byte);
+var
+  AWord: Word;
+begin
+  AStream.ReadData(AWord);
+  AField.Left := AWord;
+  AStream.ReadData(AWord);
+  AField.Width := AWord;
+  AStream.ReadData(AWord);
+  AField.Top := AWord;
+  AStream.ReadData(AWord);
+  AField.Height := AWord;
+
+  case AByte of
+    0:  LoadTxt(AStream, ATxt, AField);
+    1:  LoadBar(AStream, ATxt, AField);
+    2:  LoadGraph(AStream,ATxt, AField);
+    3:  LoadOtherTxt(AStream,ATxt, AField);
+  end;
+
+end;
+//==============================================================================
+
+function TEbsT03Loader.ToSpecReg(const AByte: Byte): TEbsSpecReg;
+begin
+  case AByte of
+    1:  Result := esrCountUp;
+    2:  Result := esrCountDown;
+    3:  Result := esrTime;
+    4:  Result := esrDate;
+    5:  Result := esrSpecChan;
+    6:  Result := esrUniDate;
+    7:  Result := esrDateOffset;
+    8:  Result := esrDateOffset2;
+    9:  Result := esrSysData;
+    10: Result := esrMetrix;
+    11: Result := esrUniCount;
+    14: Result := esrTxt;
+    15: Result := esrVar;
+  else
+    Result := esrNone;
+  end;
+end;
+//==============================================================================
+
+procedure TEbsT03Loader.LoadTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+var
+  AByte: Byte;
+  i: Integer;
+  ABuff: array [0..500] of Byte;
+  AWord: Word;
+  AFieldTxt: TEbsTextField;
+begin
+  AFieldTxt := AField as TEbsTextField;
+  AStream.Seek(20, soFromCurrent);
+  {czcionka}
+  AStream.ReadData(AByte);
+  AFieldTxt.FontId := AByte;
+
+  {krotnoœæ i odstêp}
+  AStream.ReadData(AByte);
+  AFieldTxt.Multiplicity := AByte and $0F;
+  AFieldTxt.CharSpace := (AByte and $F0) shr 4;
+
+  {rotacja}
+  AStream.ReadData(AByte, 1);
+  case AByte and $0F of
+    0: AFieldTxt.CharRot := ecrStd;
+    1: AFieldTxt.CharRot := ecrRight;
+    2: AFieldTxt.CharRot := ecrUpsideDown;
+    3: AFieldTxt.CharRot := ecrLeft;
+  end;
+
+  {rejestr specjalny}
+  AStream.ReadData(AByte, 1);
+  AFieldTxt.SpecReg := ToSpecReg(AByte);
+
+  {odstêpy}
+  AStream.ReadData(AWord, 2);
+  AFieldTxt.FrontSpace := AWord;
+  AStream.ReadData(AWord, 2);
+  AFieldTxt.BackSpace := AWord;
+  {zawartoœæ tekstu}
+  AStream.ReadBuffer(ABuff,500);
+  AFieldTxt.Text := '';
+  for i:=0 to 500 do
+  begin
+    if Byte(ABuff[i]) = 0 then Break;
+    AFieldTxt.Text := AFieldTxt.Text + Char(ABuff[i]);
+  end;
+
+  AStream.Seek(1, soFromCurrent);
+
+end;
+//==============================================================================
+
+function TEbsT03Loader.ToBarcodeType(const AValue: Byte): TEbsBarcodeType;
+begin
+  case AValue of
+    $E0: Result := ebtCode25Datalogic;
+    $E1: Result := ebtCode253Bars;
+    $E2: Result := ebtCode255Bars;
+    $E3: Result := ebtCode25Interleaved;
+    $E4: Result := ebtCodeAlpha39;
+    $E5: Result := ebtEan8;
+    $E6: Result := ebtEan13;
+    $E7: Result := ebtItf8;
+    $E8: Result := ebtItf14;
+    $E9: Result := ebtCode128B;
+    $EA: Result := ebtCode128;
+    $EB: Result := ebtEan128;
+    $EC: Result := ebtEcc200;
+  else
+    Result := ebtCode25Datalogic;
+  end;
+end;
+//==============================================================================
+
+procedure TEbsT03Loader.LoadBar(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
+var
+  AByte: Byte;
+  AWord: Word;
+  ABuff: array [0..511] of Byte;
+  i: Integer;
+  AFieldBar: TEbsBarcodeField;
+
+begin
+  AFieldBar := AField as TEbsBarcodeField;
+  AStream.Seek(20, soFromCurrent);
+
+  {typ barkodu}
+  AStream.ReadData(AByte, 1);
+  AFieldBar.BarcodeType := ToBarcodeType(AByte);
+
+  {krotnoœæ rz¹dków, podpis, negatyw}
+  AStream.Seek(1, soFromCurrent);
+  AStream.ReadData(AByte, 1);
+  AFieldBar.Multiplicity := AByte and $0F;
+  AFieldBar.Signatured := GetBit(AByte, 4);
+  AFieldBar.Inverted := GetBit(AByte, 5);
+
+  {odstêpy}
+  AStream.ReadData(AWord);
+  AFieldBar.FrontSpace := AWord;
+  AStream.ReadData(AWord);
+  AFieldBar.BackSpace := AWord;
+
+  {pafal}
+  AStream.Seek(2, soFromCurrent);
+  AStream.ReadData(AByte);
+  AFieldBar.Pafal := AByte;
+
+  {rejestr specjalny}
+  AStream.ReadData(AByte, 1);
+  AFieldBar.SpecReg := ToSpecReg(AByte);
+
+  {wielkoœæ podpisu, odstêp podpisu}
+  AStream.ReadData(AByte);
+  AFieldBar.SmallSign := GetBit(AByte, 7);
+  AFieldBar.LargeSignSpace := GetBit(AByte, 6);
+
+  {zawartoœæ}
+  AStream.Read(ABuff, 511);
+  AFieldBar.Value := '';
+  for i:=0 to 511 do
+  begin
+    if Byte(ABuff[i+256]) = 0 then Break;
+    AFieldBar.Value := AFieldBar.Value + Char( ABuff[i+256] );
+  end;
+
+  AStream.Seek(1, soFromCurrent);
+end;
+//==============================================================================
+
+procedure TEbsT03Loader.LoadGraph(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
+var
+  AWord: Word;
+  ABmp: TBmpFile;
+  X,Y: Integer;
+  ABmpStart: UInt64;
+  AFieldGraph: TEbsGraphicField;
+
+begin
+  AFieldGraph := AField as TEbsGraphicField;
+  AStream.Seek(24, soFromCurrent);
+  AStream.ReadData(AWord);
+  AFieldGraph.FrontSpace := AWord;
+  AStream.ReadData(AWord);
+  AFieldGraph.BackSpace := AWord;
+  AStream.Seek(2, soFromCurrent);
+
+  ABmp := TBmpFile.Create(nil);
+  try
+    ABmpStart := AStream.Position;
+    ABmp.LoadFromStream(AStream);
+    AStream.Position := ABmpStart + ABmp.FileHeader.FileSize;
+    AStream.Seek(-2, soFromCurrent);
+
+    if ABmp.Image is TBmp1BitImage then
+    begin
+      AFieldGraph.Image.Height := ABmp.Image.Height;
+      AFieldGraph.Image.Width := ABmp.Image.Width;
+
+      if ABmp.ColorPalette[0].Brightness > ABmp.ColorPalette[1].Brightness then
+        for Y:=0 to AFieldGraph.Image.Height-1 do
+          for X:=0 to AFieldGraph.Image.Width-1 do
+            AFieldGraph.Image[X,Y] := (ABmp.Image as TBmp1BitImage)[X,Y]
+      else
+        for Y:=0 to AFieldGraph.Image.Height-1 do
+          for X:=0 to AFieldGraph.Image.Width-1 do
+            AFieldGraph.Image[X,Y] := not (ABmp.Image as TBmp1BitImage)[X,Y]
+
+    end else
+      raise Exception.Create('GraphicField loading error.');
+
+    //AStream.Seek(2, soFromCurrent);
+  finally
+    FreeAndNil(ABmp);
+  end;
+
+end;
+
+procedure TEbsT03Loader.LoadOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+begin
+
+end;
+
+
+end.
