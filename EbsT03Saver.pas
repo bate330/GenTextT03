@@ -328,8 +328,25 @@ begin
 end;
 //==============================================================================
 procedure TEbsT03Saver.SaveOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+var
+  i: Integer;
+  ABuff: array [0..14] of Byte;
+  AFieldOTxt: TEbsOtherTxtField;
 begin
+  AFieldOTxt := AField as TEbsOtherTxtField;
+  AStream.Seek(2, soFromCurrent);
+  WriteByte(AStream,$03);
+  AStream.Seek(19, soFromCurrent);
 
+  {odstêpy}
+  AStream.WriteData(AFieldOTxt.FrontSpace, 2);
+  AStream.WriteData(AFieldOTxt.BackSpace, 2);
+
+  {zawartoœæ tekstu}
+  for i:=0 to Length(AFieldOTxt.TextName)-1 do
+    ABuff[i] := ToEbsChar(AFieldOTxt.TextName[i+1]);
+  ABuff[Length(AFieldOTxt.TextName)]:=0;
+  AStream.WriteBuffer(ABuff, Length(ABuff));
 end;
 
 

@@ -8,8 +8,6 @@ uses
 type
   TEbsT03Loader = class
   private
-//    FFileName: string;
-//    procedure SetFileName(const Value: string);
     procedure Clear(AFields: TEbsFields);
     procedure LoadEdgraf(AStream: TStream; ATxt: TEbsTxt);
     procedure LoadPosition(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField;AByte: Byte);
@@ -23,7 +21,6 @@ type
 
   public
     procedure LoadFromFile(AFileName: string; ATxt: TEbsTxt);
-//    property FileName: string read FFileName write SetFileName;
 
   end;
 
@@ -34,12 +31,6 @@ implementation uses System.Types, DateUtils, Streams, BmpFile, Bmp1BitImage,
 //==============================================================================
 { TEbsT03Loader }
 
-//==============================================================================
-
-//procedure TEbsT03Loader.SetFileName(const Value: string);
-//begin
-//  FFileName := Value;
-//end;
 //==============================================================================
 
 procedure TEbsT03Loader.LoadFromFile(AFileName: string; ATxt: TEbsTxt);
@@ -66,7 +57,6 @@ var
   ATxtHeightByte: Byte;
   AField: TEbsField;
   AFieldLengthArray: TBytes;
-//  AFields: TEbsFields;
 
 begin
   if Assigned(ATxt.Fields) then
@@ -81,15 +71,10 @@ begin
 
   while AStream.Position+15 < AStream.Size do
   begin
-    //if ATxt.Fields.Count=0 then begin
       AStream.Seek(10, soFromCurrent);
       AStream.Read(AByte, 1);
       AStream.Seek(-11, soFromCurrent);
-    //end else begin
-     // AStream.Seek(11, soFromCurrent);
-     // AStream.Read(AByte, 1);
-     // AStream.Seek(-12, soFromCurrent);
-   // end;
+
 
     AField := nil;
 
@@ -102,26 +87,15 @@ begin
 
     if Assigned(AField) then
     begin
-      //AField.LoadEdgraf(AStream);
       LoadPosition(AStream,ATxt,AField,AByte);
       AStream.Seek(1, soFromCurrent);
-      //if AByte=1 then begin
-        AStream.Read(AFieldLength, 1);
-        SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
-        AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
-        ATxt.Fields.FirstFieldLength := AFieldLengthArray;
-        //AStream.Seek(9, soFromCurrent);
-        //AStream.Read(AByte, 1);
-      //end;
-      //SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
-      //AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
-
-      //ATxt.Fields.FirstFieldLength[ATxt.Fields.Count] := AFieldLength;
-      //ATxt.Fields.SetLengthFieldLength(ATxt.Fields.FirstFieldLength,ATxt.Fields.Count+1);
+      AStream.Read(AFieldLength, 1);
+      SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
+      AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
+      ATxt.Fields.FirstFieldLength := AFieldLengthArray;
       ATxt.Fields.Add(AField);
       AStream.Seek(-1, soFromCurrent);
     end;
-    //AStream.Seek(1, soFromCurrent);
 
   end;
 
@@ -362,7 +336,28 @@ begin
 end;
 
 procedure TEbsT03Loader.LoadOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+var
+  i: Integer;
+  ABuff: array [0..14] of Byte;
+  AWord: Word;
+  AFieldOTxt: TEbsOtherTxtField;
 begin
+  AFieldOTxt := AField as TEbsOtherTxtField;
+  AStream.Seek(22, soFromCurrent);
+
+  {odstêpy}
+  AStream.ReadData(AWord);
+  AFieldOTxt.FrontSpace := AWord;
+  AStream.ReadData(AWord);
+  AFieldOTxt.BackSpace := AWord;
+  {zawartoœæ tekstu}
+  AStream.ReadBuffer(ABuff,14);
+  AFieldOTxt.TextName := '';
+  for i:=0 to 14 do
+  begin
+    if Byte(ABuff[i]) = 0 then Break;
+    AFieldOTxt.TextName := AFieldOTxt.TextName + Char(ABuff[i]);
+  end;
 
 end;
 
