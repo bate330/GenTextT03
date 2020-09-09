@@ -1,0 +1,336 @@
+unit EbsT03Saver;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, EbsTxt, EbsFonts, EbsTypes, Bytes, Graphics, BoolImage;
+
+type
+  TEbsT03Saver = class
+    private
+    procedure SavePosition(AStream: TStream; ATxt: TEbsTxt);
+    procedure SaveTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    procedure SaveBar(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    procedure SaveGraph(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    procedure SaveOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    procedure CopyImageToBitmap(Image: TBoolImage; ABitmap: TBitmap; AField: TEbsField);
+    function BarcodeTypeToByte(const ABarcodeType: TEbsBarcodeType): Byte;
+    function SpecRegToByte(const ASpecReg: TEbsSpecReg): Byte;
+
+    public
+    procedure SaveToFile(ATxt: TEbsTxt; AFileName: string);
+    procedure SaveEdgraf(ATxt: TEbsTxt; AStream: TStream);
+  end;
+
+  type
+  TWordBytes = record
+    byte1, byte2: byte;
+  end;
+
+implementation
+         uses System.Types, DateUtils, Streams, BmpFile, Bmp1BitImage, Generics.Defaults,
+  EbsFieldLeftComparer;
+
+{ TSaver }
+
+//==============================================================================
+
+procedure TEbsT03Saver.SaveToFile(ATxt: TEbsTxt; AFileName: string);
+var
+  AExt: string;
+  AStream: TStream;
+begin
+  AStream := TFileStream.Create(AFileName, fmCreate);
+  try
+    AExt := ExtractFileExt(AFileName);
+    if LowerCase(AExt) = '.t03' then SaveEdgraf(ATxt,AStream);
+  finally
+    FreeAndNil(AStream);
+  end;
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.SaveEdgraf(ATxt: TEbsTxt; AStream: TStream);
+var
+  AFields: TEbsFields;
+begin
+  if not Assigned(ATxt.Fields) then
+    raise Exception.Create('Saving text to edgraf stream error. Fields not assigned!');
+
+  AFields := nil;
+  try
+    {typ drukarki - domyœlnie uniwersalna}
+    WriteByte(AStream, $83);
+
+    {wysokoœæ pix}
+    WriteByte(AStream, ATxt.Fields.TxtHeight);
+
+    {tworzymy lokaln¹ kopiê obiektu - na niej bêdziemy robiæ wszystkie dzia³ania}
+    AFields := ATxt.Fields.Clone(nil) as TEbsFields;
+
+    {sortujemy pola po Left}
+    AFields.SortByLeft;
+
+    SavePosition(AStream,ATxt);
+
+    WriteByte(AStream, $00);
+
+  finally
+    if Assigned(AFields) then AFields.Free;
+
+  end;
+
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.SavePosition(AStream: TStream; ATxt: TEbsTxt);
+var
+i: integer;
+begin
+  for i:=0 to ATxt.Fields.Count-1 do begin
+        if (i>=1) then begin
+         AStream.WriteData(ATxt.Fields.FirstFieldLength[i-1]);
+         AStream.Seek(11, soFromCurrent);
+         if ATxt.Fields.Items[i].ClassType=TEbsTextField then WriteByte(AStream, $00);;
+         if ATxt.Fields.Items[i].ClassType=TEbsBarcodeField then WriteByte(AStream, $01);;
+         if ATxt.Fields.Items[i].ClassType=TEbsGraphicField then WriteByte(AStream, $02);;
+         if ATxt.Fields.Items[i].ClassType=TEbsOtherTxtField then WriteByte(AStream, $03);;
+         AStream.Seek(-12, soFromCurrent);
+    end;
+    AStream.WriteData(ATxt.Fields.Items[i].Left);
+    AStream.WriteData(ATxt.Fields.Items[i].Width);
+    AStream.WriteData(ATxt.Fields.Items[i].Top);
+    AStream.WriteData(ATxt.Fields.Items[i].Height);
+    if ATxt.Fields.Items[i].ClassType=TEbsTextField then SaveTxt(AStream,ATxt,ATxt.Fields.Items[i]);
+    if ATxt.Fields.Items[i].ClassType=TEbsBarcodeField then SaveBar(AStream,ATxt,ATxt.Fields.Items[i]);
+    if ATxt.Fields.Items[i].ClassType=TEbsGraphicField then SaveGraph(AStream,ATxt,ATxt.Fields.Items[i]);
+    if ATxt.Fields.Items[i].ClassType=TEbsOtherTxtField then SaveOtherTxt(AStream,ATxt,ATxt.Fields.Items[i]);
+  end;
+end;
+//==============================================================================
+function TEbsT03Saver.SpecRegToByte(const ASpecReg: TEbsSpecReg): Byte;
+begin
+  case ASpecReg of
+    esrNone:        Result := 0;
+    esrCountUp:     Result := 1;
+    esrCountDown:   Result := 2;
+    esrTime:        Result := 3;
+    esrDate:        Result := 4;
+    esrSpecChan:    Result := 5;
+    esrUniDate:     Result := 6;
+    esrDateOffset:  Result := 7;
+    esrDateOffset2: Result := 8;
+    esrSysData:     Result := 9;
+    esrMetrix:      Result := 10;
+    esrUniCount:    Result := 11;
+    esrTxt:         Result := 14;
+    esrVar:         Result := 15;
+  else
+    Result := 0;
+  end;
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.SaveTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+var
+  AByte: Byte;
+  i: Integer;
+  ABuff: array [0..500] of Byte;
+  AFieldTxt: TEbsTextField;
+begin
+  AFieldTxt := AField as TEbsTextField;
+  AStream.Seek(20, soFromCurrent);
+
+
+  {czcionka}
+
+  WriteByte(AStream, AFieldTxt.FontId);
+
+  {krotnoœæ i odstêp}
+  AByte := AFieldTxt.Multiplicity and $0F;
+  AByte := AByte or ((AFieldTxt.CharSpace and $0F) shl 4);
+  WriteByte(AStream, AByte);
+
+  {rotacja}
+  case AFieldTxt.CharRot of
+    ecrStd:         AByte := $00;
+    ecrRight:       AByte := $01;
+    ecrUpsideDown:  AByte := $02;
+    ecrLeft:        AByte := $03;
+  end;
+  WriteByte(AStream, AByte);
+
+  {rejestr specjalny}
+  AByte := SpecRegToByte(AFieldTxt.SpecReg);
+  WriteByte(AStream, AByte);
+
+  {odstêpy}
+  AStream.WriteData(AFieldTxt.FrontSpace, 2);
+  AStream.WriteData(AFieldTxt.BackSpace, 2);
+
+  {zawartoœæ tekstu}
+  for i:=0 to Length(AFieldTxt.Text)-1 do
+    ABuff[i] := ToEbsChar(AFieldTxt.Text[i+1]);
+  AStream.WriteBuffer(ABuff, Length(ABuff));
+end;
+//==============================================================================
+
+function TEbsT03Saver.BarcodeTypeToByte(const ABarcodeType: TEbsBarcodeType): Byte;
+begin
+  case aBarcodeType of
+    ebtCode25Datalogic:     Result := $E0;
+    ebtCode253Bars:         Result := $E1;
+    ebtCode255Bars:         Result := $E2;
+    ebtCode25Interleaved:   Result := $E3;
+    ebtCodeAlpha39:         Result := $E4;
+    ebtEan8:                Result := $E5;
+    ebtEan13:               Result := $E6;
+    ebtItf8:                Result := $E7;
+    ebtItf14:               Result := $E8;
+    ebtCode128B:            Result := $E9;
+    ebtCode128:             Result := $EA;
+    ebtEan128:              Result := $EB;
+    ebtEcc200:              Result := $EC;
+  else
+    Result := $E0;
+  end;
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.SaveBar(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+var
+  AByte: Byte;
+  i, AEndAddr: Integer;
+  ABuff: array [0..511] of Byte;
+  AFieldBar: TEbsBarcodeField;
+  ba: TWordBytes;
+begin
+  AFieldBar := AField as TEbsBarcodeField;
+
+  if AFieldBar.BarcodeType=ebtEcc200 then begin
+  AStream.Seek(-20, soFromCurrent);
+  exit;
+
+  end;
+  {jakieœ wartoœci}
+  WriteUInt16(AStream, 0);
+  WriteByte(AStream, 1);
+  AStream.Seek(16, soFromCurrent);
+  WriteByte(AStream, 1);
+
+  {rodzaj barkodu}
+  AByte:= BarcodeTypeToByte(AFieldBar.BarcodeType);
+  WriteByte(AStream, AByte);
+  AStream.Seek(1, soFromCurrent);
+
+  {krotnoœæ, podpis, negatyw}
+  AByte := AFieldBar.Multiplicity;
+  SetBit(AByte, 4, AFieldBar.Signatured);
+  SetBit(AByte, 5, AFieldBar.Inverted);
+  WriteByte(AStream, AByte);
+
+  {odstêpy}
+  ba:= TWordBytes(AFieldBar.FrontSpace);
+  WriteByte(AStream, ba.byte1);
+  WriteByte(AStream, ba.byte2);
+  ba:= TWordBytes(AFieldBar.BackSpace);
+  WriteByte(AStream, ba.byte1);
+  WriteByte(AStream, ba.byte2);
+
+  {wysokoœæ}
+  WriteUInt16( AStream, Swap(AFieldBar.Height) );
+
+  {pafal i rejestr specjalny}
+  WriteByte( AStream, AFieldBar.Pafal);
+  WriteByte( AStream, EbsTxt.ToByte(AFieldBar.SpecReg) );
+
+  {wielkoœæ podpisu, odstêp podpisu}
+  AByte := 0;
+  SetBit(AByte, 7, AFieldBar.SmallSign);
+  SetBit(AByte, 6, AFieldBar.LargeSignSpace);
+  WriteByte(AStream, AByte);
+
+  {wartoœæ kodu}
+  AEndAddr := 0;
+  for i:=0 to Length(AFieldBar.Value)-1 do
+  begin
+    if i=Length(AFieldBar.Value) then break;
+    AEndAddr := i;
+    ABuff[i+256] := Byte( AFieldBar.Value[i+1] );
+  end;
+  ABuff[AEndAddr+257] := 0;
+  AStream.Write(ABuff, 511);
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.SaveGraph(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+var
+//  ABmp: TBmpFile;
+  ABitmap: TBitmap;
+  AFieldGraph: TEbsGraphicField;
+  Image: TBoolImage;
+  DividedWord: TWordBytes;
+begin
+  AFieldGraph := AField as TEbsGraphicField;
+  {jakieœ wartoœci}
+  WriteUInt16(AStream, 0);
+  WriteByte(AStream, 2);
+  AStream.Seek(17, soFromCurrent);
+  WriteByte(AStream, $FE);
+
+  {wysokoœæ i d³ugoœæ grafiki}
+  WriteByte(AStream, AFieldGraph.Height);
+  WriteUInt16(AStream, AFieldGraph.Width);
+
+  {odstêpy}
+  DividedWord:= TWordBytes(AFieldGraph.FrontSpace);
+  WriteByte(AStream, DividedWord.byte1);
+  WriteByte(AStream, DividedWord.byte2);
+  DividedWord:= TWordBytes(AFieldGraph.BackSpace);
+  WriteByte(AStream, DividedWord.byte1);
+  WriteByte(AStream, DividedWord.byte2);
+  WriteByte(AStream, $00);
+
+  {grafika}
+  AStream.Seek(1, soFromCurrent);
+
+
+  ABitmap := TBitmap.Create;
+  try
+    ABitmap.PixelFormat := pf1bit;
+    Image := AFieldGraph.Image;
+    CopyImageToBitmap(Image, ABitmap, AFieldGraph);
+    ABitmap.SaveToStream(AStream);
+    AStream.Seek(-1, soFromEnd);
+
+  finally
+   FreeAndNil(ABitmap);
+
+  end;
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.CopyImageToBitmap(Image: TBoolImage; ABitmap: TBitmap; AField: TEbsField);
+var
+  X: integer;
+  Y: integer;
+begin
+  ABitmap.Width := Image.Width;
+  ABitmap.Height := Image.Height;
+
+  for Y:=0 to Image.Height-1 do
+    for X:=0 to Image.Width-1 do
+      if Image[X,Y] then
+        ABitmap.Canvas.Pixels[X,Y] := clBlack
+      else
+        ABitmap.Canvas.Pixels[X,Y] := clWhite;
+
+end;
+//==============================================================================
+procedure TEbsT03Saver.SaveOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+begin
+
+end;
+
+
+end.

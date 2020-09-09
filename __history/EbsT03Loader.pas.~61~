@@ -79,13 +79,20 @@ begin
   AStream.Read(ATxtHeightByte, 1);
   ATxt.Fields.TxtHeight := ATxtHeightByte;
 
-  while AStream.Position < AStream.Size do
+  while AStream.Position+15 < AStream.Size do
   begin
-    AStream.Seek(10, soFromCurrent);
-    AStream.Read(AByte, 1);
-    AStream.Seek(-11, soFromCurrent);
+    //if ATxt.Fields.Count=0 then begin
+      AStream.Seek(10, soFromCurrent);
+      AStream.Read(AByte, 1);
+      AStream.Seek(-11, soFromCurrent);
+    //end else begin
+     // AStream.Seek(11, soFromCurrent);
+     // AStream.Read(AByte, 1);
+     // AStream.Seek(-12, soFromCurrent);
+   // end;
 
     AField := nil;
+
     case AByte of
       0: AField := TEbsTextField.Create(ATxt.Fields);
       1: AField := TEbsBarcodeField.Create(ATxt.Fields);
@@ -98,12 +105,14 @@ begin
       //AField.LoadEdgraf(AStream);
       LoadPosition(AStream,ATxt,AField,AByte);
       AStream.Seek(1, soFromCurrent);
-      if AByte=1 then begin
+      //if AByte=1 then begin
         AStream.Read(AFieldLength, 1);
         SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
         AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
         ATxt.Fields.FirstFieldLength := AFieldLengthArray;
-      end;
+        //AStream.Seek(9, soFromCurrent);
+        //AStream.Read(AByte, 1);
+      //end;
       //SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
       //AFieldLengthArray[ATxt.Fields.Count] := AFieldLength;
 
@@ -112,11 +121,12 @@ begin
       ATxt.Fields.Add(AField);
       AStream.Seek(-1, soFromCurrent);
     end;
-    //AStream.Seek(2, soFromCurrent);
+    //AStream.Seek(1, soFromCurrent);
 
   end;
 
 end;
+
 //==============================================================================
 
 procedure TEbsT03Loader.Clear(AFields: TEbsFields);
@@ -145,6 +155,7 @@ begin
     3:  LoadOtherTxt(AStream,ATxt, AField);
   end;
 
+  AStream.Seek(1, soFromCurrent);
 end;
 //==============================================================================
 
@@ -257,6 +268,12 @@ begin
   AStream.ReadData(AByte, 1);
   AFieldBar.BarcodeType := ToBarcodeType(AByte);
 
+  if AFieldBar.BarcodeType=ebtEcc200 then begin
+  AStream.Seek(545, soFromCurrent);
+  exit;
+  end;
+
+
   {krotnoœæ rz¹dków, podpis, negatyw}
   AStream.Seek(1, soFromCurrent);
   AStream.ReadData(AByte, 1);
@@ -293,6 +310,7 @@ begin
     AFieldBar.Value := AFieldBar.Value + Char( ABuff[i+256] );
   end;
 
+  AStream.Seek(-1, soFromCurrent);
 end;
 //==============================================================================
 

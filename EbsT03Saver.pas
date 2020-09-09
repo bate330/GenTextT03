@@ -206,6 +206,12 @@ var
   ba: TWordBytes;
 begin
   AFieldBar := AField as TEbsBarcodeField;
+
+  if AFieldBar.BarcodeType=ebtEcc200 then begin
+  AStream.Seek(-9, soFromCurrent);
+  exit;
+
+  end;
   {jakieœ wartoœci}
   WriteUInt16(AStream, 0);
   WriteByte(AStream, 1);

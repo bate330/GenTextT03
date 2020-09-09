@@ -268,6 +268,12 @@ begin
   AStream.ReadData(AByte, 1);
   AFieldBar.BarcodeType := ToBarcodeType(AByte);
 
+  if AFieldBar.BarcodeType=ebtEcc200 then begin
+  AStream.Seek(521, soFromCurrent);
+  exit;
+  end;
+
+
   {krotnoœæ rz¹dków, podpis, negatyw}
   AStream.Seek(1, soFromCurrent);
   AStream.ReadData(AByte, 1);
