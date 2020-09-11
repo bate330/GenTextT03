@@ -1,26 +1,24 @@
 unit EbsT03Loader;
+interface uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
+  EbsTxt, EbsTypes, Bytes;
 
-interface
-
-uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, EbsTxt, EbsTypes, Bytes;
-
+//==============================================================================
 type
   TEbsT03Loader = class
   private
-    procedure Clear(AFields: TEbsFields);
     procedure LoadEdgraf(AStream: TStream; ATxt: TEbsTxt);
-    procedure LoadPosition(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField;AByte: Byte);
-    procedure LoadTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
-    procedure LoadBar(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
-    procedure LoadGraph(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
-    procedure LoadOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+    procedure LoadField(AStream: TStream; AField: TEbsField);
+    procedure LoadTxt(AStream: TStream; AField: TEbsField);
+    procedure LoadBar(AStream: TStream; AField: TEbsField);
+    procedure LoadGraph(AStream: TStream; AField: TEbsField);
+    procedure LoadOtherTxt(AStream: TStream; AField: TEbsField);
     function ToBarcodeType(const AValue: Byte): TEbsBarcodeType;
     function ToSpecReg(const AByte: Byte): TEbsSpecReg;
-
+    function StrMaxLen(const S: string; MaxLen: integer): string;
 
   public
-    procedure LoadFromFile(AFileName: string; ATxt: TEbsTxt);
+    procedure LoadFromFile(const AFileName: string; ATxt: TEbsTxt);
 
   end;
 
@@ -33,16 +31,32 @@ implementation uses System.Types, DateUtils, Streams, BmpFile, Bmp1BitImage,
 
 //==============================================================================
 
-procedure TEbsT03Loader.LoadFromFile(AFileName: string; ATxt: TEbsTxt);
+function TEbsT03Loader.StrMaxLen(const S: string; MaxLen: integer): string;
+var
+  i: Integer;
+begin
+  result := S;
+  if Length(result) <= MaxLen then Exit;
+  SetLength(result, MaxLen);
+
+end;
+
+//==============================================================================
+
+procedure TEbsT03Loader.LoadFromFile(const AFileName: string; ATxt: TEbsTxt);
 var
   AExt: string;
   AStream: TStream;
+  AFileNameLength: integer;
+  AFieldNameWithoutExtension: string;
 begin
   AStream := TFileStream.Create(AFileName, fmOpenRead);
   try
     AExt := ExtractFileExt(AFileName);
     if LowerCase(AExt) = '.t03' then LoadEdgraf(AStream, ATxt);
-    ATxt.TxtName := ExtractFileName(AFileName);
+    AFileNameLength := AFileName.Length-4;
+    AFieldNameWithoutExtension := StrMaxLen(AFileName,AFileNameLength);
+    ATxt.TxtName := ExtractFileName(AFieldNameWithoutExtension);
   finally
     FreeAndNil(AStream);
   end;
@@ -60,7 +74,7 @@ var
 
 begin
   if Assigned(ATxt.Fields) then
-    Clear(ATxt.Fields)
+    ATxt.Fields.Clear
   else
     ATxt.Fields := TEbsFields.Create(ATxt);
 
@@ -71,10 +85,9 @@ begin
 
   while AStream.Position+15 < AStream.Size do
   begin
-      AStream.Seek(10, soFromCurrent);
-      AStream.Read(AByte, 1);
-      AStream.Seek(-11, soFromCurrent);
-
+    AStream.Seek(10, soFromCurrent);
+    AStream.Read(AByte, 1);
+    AStream.Seek(-11, soFromCurrent);
 
     AField := nil;
 
@@ -87,7 +100,7 @@ begin
 
     if Assigned(AField) then
     begin
-      LoadPosition(AStream,ATxt,AField,AByte);
+      LoadField(AStream, AField);
       AStream.Seek(1, soFromCurrent);
       AStream.Read(AFieldLength, 1);
       SetLength(AFieldLengthArray, ATxt.Fields.Count+1);
@@ -102,16 +115,10 @@ begin
 end;
 
 //==============================================================================
-
-procedure TEbsT03Loader.Clear(AFields: TEbsFields);
-begin
- AFields.Clear;
-end;
-//==============================================================================
-
-procedure TEbsT03Loader.LoadPosition(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField; AByte: Byte);
+procedure TEbsT03Loader.LoadField(AStream: TStream; AField: TEbsField);
 var
   AWord: Word;
+
 begin
   AStream.ReadData(AWord);
   AField.Left := AWord;
@@ -122,14 +129,13 @@ begin
   AStream.ReadData(AWord);
   AField.Height := AWord;
 
-  case AByte of
-    0:  LoadTxt(AStream, ATxt, AField);
-    1:  LoadBar(AStream, ATxt, AField);
-    2:  LoadGraph(AStream,ATxt, AField);
-    3:  LoadOtherTxt(AStream,ATxt, AField);
-  end;
+  if AField is TEbsTextField then LoadTxt(AStream, AField);
+  if AField is TEbsBarcodeField then LoadBar(AStream, AField);
+  if AField is TEbsGraphicField then LoadGraph(AStream, AField);
+  if AField is TEbsOtherTxtField then LoadOtherTxt(AStream, AField);
 
   AStream.Seek(1, soFromCurrent);
+
 end;
 //==============================================================================
 
@@ -155,7 +161,7 @@ begin
 end;
 //==============================================================================
 
-procedure TEbsT03Loader.LoadTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+procedure TEbsT03Loader.LoadTxt(AStream: TStream; AField: TEbsField);
 var
   AByte: Byte;
   i: Integer;
@@ -226,7 +232,7 @@ begin
 end;
 //==============================================================================
 
-procedure TEbsT03Loader.LoadBar(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
+procedure TEbsT03Loader.LoadBar(AStream: TStream; AField: TEbsField);
 var
   AByte: Byte;
   AWord: Word;
@@ -288,7 +294,7 @@ begin
 end;
 //==============================================================================
 
-procedure TEbsT03Loader.LoadGraph(AStream: TStream; ATxt : TEbsTxt; AField: TEbsField);
+procedure TEbsT03Loader.LoadGraph(AStream: TStream; AField: TEbsField);
 var
   AWord: Word;
   ABmp: TBmpFile;
@@ -335,12 +341,14 @@ begin
 
 end;
 
-procedure TEbsT03Loader.LoadOtherTxt(AStream: TStream; ATxt: TEbsTxt; AField: TEbsField);
+//------------------------------------------------------------------------------
+procedure TEbsT03Loader.LoadOtherTxt(AStream: TStream; AField: TEbsField);
 var
   i: Integer;
   ABuff: array [0..14] of Byte;
   AWord: Word;
   AFieldOTxt: TEbsOtherTxtField;
+
 begin
   AFieldOTxt := AField as TEbsOtherTxtField;
   AStream.Seek(22, soFromCurrent);
