@@ -7,7 +7,10 @@ interface uses
 type
   TEbsT03Saver = class
   private
-    procedure SaveField(AStream: TStream; ATxt: TEbsTxt);
+    procedure SaveFileHeader(ATxt: TEbsTxt; AStream: TStream);
+    procedure SaveFields(AStream: TStream; AFields: TEbsFields);
+    procedure FieldHeader(AField: TEbsField; AStream: TStream);
+    procedure FieldData(AField: TEbsField; AStream: TStream);
     procedure SaveTxt(AStream: TStream; AField: TEbsField);
     procedure SaveBar(AStream: TStream; AField: TEbsField);
     procedure SaveGraph(AStream: TStream; AField: TEbsField);
@@ -15,15 +18,12 @@ type
     procedure CopyImageToBitmap(Image: TBoolImage; ABitmap: TBitmap; AField: TEbsField);
     function BarcodeTypeToByte(const ABarcodeType: TEbsBarcodeType): Byte;
     function SpecRegToByte(const ASpecReg: TEbsSpecReg): Byte;
+    procedure SaveField(AField: TEbsField; AStream: TStream);
 
   public
     procedure SaveToFile(ATxt: TEbsTxt; AFileName: string);
     procedure SaveEdgraf(ATxt: TEbsTxt; AStream: TStream);
 
-  end;
-
-  TWordBytes = record
-    byte1, byte2: byte;
   end;
 
 //==============================================================================
@@ -47,6 +47,20 @@ begin
   end;
 end;
 //==============================================================================
+procedure TEbsT03Saver.SaveFileHeader(ATxt: TEbsTxt; AStream: TStream);
+begin
+  {type of printer, constant value}
+    WriteByte(AStream, $83);
+
+  {text height}
+    if ATxt.Fields.TxtHeight=0 then begin  // if 0, then create typical null file version
+      WriteByte(AStream, $10);
+      Exit;
+    end else
+    WriteByte(AStream, ATxt.Fields.TxtHeight);
+end;
+
+//==============================================================================
 
 procedure TEbsT03Saver.SaveEdgraf(ATxt: TEbsTxt; AStream: TStream);
 var
@@ -57,65 +71,69 @@ begin
 
   AFields := nil;
   try
-    {typ drukarki - domyœlnie uniwersalna}
-    WriteByte(AStream, $83);
-
-    {wysokoœæ pix}
-    if ATxt.Fields.TxtHeight=0 then begin
-      WriteByte(AStream, $10);
-      Exit;
-    end else
-    WriteByte(AStream, ATxt.Fields.TxtHeight);
-
-    {tworzymy lokaln¹ kopiê obiektu - na niej bêdziemy robiæ wszystkie dzia³ania}
+    SaveFileHeader(ATxt,AStream);
+    {create local copy of object - on the copy we will do all activities on it}
     AFields := ATxt.Fields.Clone(nil) as TEbsFields;
-
-    {sortujemy pola po Left}
+    {sort fields by left}
     AFields.SortByLeft;
-
-    SaveField(AStream,ATxt);
-
-    WriteByte(AStream, $00);
+    SaveFields(AStream, AFields);
 
   finally
     if Assigned(AFields) then AFields.Free;
-
   end;
 
 end;
-
 //==============================================================================
-procedure TEbsT03Saver.SaveField(AStream: TStream; ATxt: TEbsTxt);
+
+procedure TEbsT03Saver.FieldHeader(AField: TEbsField; AStream: TStream);
+begin
+    AStream.Seek(10, soFromCurrent);
+
+    if AField is TEbsTextField then WriteByte(AStream, $00);
+    if AField is TEbsBarcodeField then WriteByte(AStream, $01);
+    if AField is TEbsGraphicField then WriteByte(AStream, $02);
+    if AField is TEbsOtherTxtField then WriteByte(AStream, $03);
+
+    AStream.Seek(-11, soFromCurrent);
+
+    AStream.WriteData(AField.Left);
+    AStream.WriteData(AField.Width);
+    AStream.WriteData(AField.Top);
+    AStream.WriteData(AField.Height);
+
+    AStream.Seek(3, soFromCurrent);
+end;
+//==============================================================================
+
+procedure TEbsT03Saver.FieldData(AField: TEbsField; AStream: TStream);
+begin
+    if AField is TEbsTextField then SaveTxt(AStream, AField);
+    if AField is TEbsBarcodeField then SaveBar(AStream, AField);
+    if AField is TEbsGraphicField then SaveGraph(AStream, AField);
+    if AField is TEbsOtherTxtField then SaveOtherTxt(AStream, AField);
+end;
+//==============================================================================
+procedure TEbsT03Saver.SaveField(AField: TEbsField; AStream: TStream);
+begin
+    FieldHeader(AField, AStream);
+    FieldData(AField, AStream);
+end;
+
+//------------------------------------------------------------------------------
+procedure TEbsT03Saver.SaveFields(AStream: TStream; AFields: TEbsFields);
 var
   i: integer;
+  AField: TEbsField;
 
 begin
-  for i:=0 to ATxt.Fields.Count-1 do begin
-
-    if (i>=1) then begin
-      AStream.WriteData(ATxt.Fields.FirstFieldLength[i-1]);
-
-      AStream.Seek(11, soFromCurrent);
-      if ATxt.Fields.Items[i] is TEbsTextField then WriteByte(AStream, $00);
-      if ATxt.Fields.Items[i] is TEbsBarcodeField then WriteByte(AStream, $01);
-      if ATxt.Fields.Items[i] is TEbsGraphicField then WriteByte(AStream, $02);
-      if ATxt.Fields.Items[i] is TEbsOtherTxtField then WriteByte(AStream, $03);
-      AStream.Seek(-12, soFromCurrent);
-    end;
-
-    AStream.WriteData(ATxt.Fields.Items[i].Left);
-    AStream.WriteData(ATxt.Fields.Items[i].Width);
-    AStream.WriteData(ATxt.Fields.Items[i].Top);
-    AStream.WriteData(ATxt.Fields.Items[i].Height);
-    if ATxt.Fields.Items[i].ClassType=TEbsTextField then SaveTxt(AStream,ATxt.Fields.Items[i]);
-    if ATxt.Fields.Items[i].ClassType=TEbsBarcodeField then SaveBar(AStream,ATxt.Fields.Items[i]);
-    if ATxt.Fields.Items[i].ClassType=TEbsGraphicField then SaveGraph(AStream,ATxt.Fields.Items[i]);
-    if ATxt.Fields.Items[i].ClassType=TEbsOtherTxtField then SaveOtherTxt(AStream,ATxt.Fields.Items[i]);
-
+  for i:=0 to AFields.Count-1 do begin
+    AField := AFields[i];
+    SaveField(AField, AStream);
   end;
-
 end;
 //==============================================================================
+
+
 function TEbsT03Saver.SpecRegToByte(const ASpecReg: TEbsSpecReg): Byte;
 begin
   case ASpecReg of
@@ -143,23 +161,21 @@ procedure TEbsT03Saver.SaveTxt(AStream: TStream; AField: TEbsField);
 var
   AByte: Byte;
   i: Integer;
-  ABuff: array [0..500] of Byte;
+  ABuff: array [0..501] of Byte;
   AFieldTxt: TEbsTextField;
 begin
   AFieldTxt := AField as TEbsTextField;
-  AStream.Seek(20, soFromCurrent);
+  AStream.Seek(17, soFromCurrent);
 
-
-  {czcionka}
-
+  {font}
   WriteByte(AStream, AFieldTxt.FontId);
 
-  {krotnoœæ i odstêp}
+  {multiplicity and space}
   AByte := AFieldTxt.Multiplicity and $0F;
   AByte := AByte or ((AFieldTxt.CharSpace and $0F) shl 4);
   WriteByte(AStream, AByte);
 
-  {rotacja}
+  {rotation}
   case AFieldTxt.CharRot of
     ecrStd:         AByte := $00;
     ecrRight:       AByte := $01;
@@ -168,15 +184,15 @@ begin
   end;
   WriteByte(AStream, AByte);
 
-  {rejestr specjalny}
+  {special reg}
   AByte := SpecRegToByte(AFieldTxt.SpecReg);
   WriteByte(AStream, AByte);
 
-  {odstêpy}
+  {front and back space}
   AStream.WriteData(AFieldTxt.FrontSpace, 2);
   AStream.WriteData(AFieldTxt.BackSpace, 2);
 
-  {zawartoœæ tekstu}
+  {text content}
   for i:=0 to Length(AFieldTxt.Text)-1 do
     ABuff[i] := ToEbsChar(AFieldTxt.Text[i+1]);
   AStream.WriteBuffer(ABuff, Length(ABuff));
@@ -211,55 +227,44 @@ var
   i, AEndAddr: Integer;
   ABuff: array [0..511] of Byte;
   AFieldBar: TEbsBarcodeField;
-  ba: TWordBytes;
-
 begin
   AFieldBar := AField as TEbsBarcodeField;
 
-  if AFieldBar.BarcodeType=ebtEcc200 then begin
-  AStream.Seek(-9, soFromCurrent);
-  exit;
-
+  if AFieldBar.BarcodeType=ebtEcc200 then begin  //if ecc200 then back to SaveFieldHeader
+    AStream.Seek(-11, soFromCurrent);
+    exit;
   end;
-  {jakieœ wartoœci}
-  WriteUInt16(AStream, 0);
-  WriteByte(AStream, 1);
-  AStream.Seek(16, soFromCurrent);
-  WriteByte(AStream, 1);
+  AStream.Seek(17, soFromCurrent);
 
-  {rodzaj barkodu}
+  {barcode type}
   AByte:= BarcodeTypeToByte(AFieldBar.BarcodeType);
   WriteByte(AStream, AByte);
   AStream.Seek(1, soFromCurrent);
 
-  {krotnoœæ, podpis, negatyw}
+  {multiplicity, signature and inversion}
   AByte := AFieldBar.Multiplicity;
   SetBit(AByte, 4, AFieldBar.Signatured);
   SetBit(AByte, 5, AFieldBar.Inverted);
   WriteByte(AStream, AByte);
 
-  {odstêpy}
-  ba:= TWordBytes(AFieldBar.FrontSpace);
-  WriteByte(AStream, ba.byte1);
-  WriteByte(AStream, ba.byte2);
-  ba:= TWordBytes(AFieldBar.BackSpace);
-  WriteByte(AStream, ba.byte1);
-  WriteByte(AStream, ba.byte2);
+  {front and back space}
+  AStream.WriteData(AFieldBar.FrontSpace, 2);
+  AStream.WriteData(AFieldBar.BackSpace, 2);
 
-  {wysokoœæ}
+  {height}
   WriteUInt16( AStream, Swap(AFieldBar.Height) );
 
-  {pafal i rejestr specjalny}
+  {pafal and spec reg}
   WriteByte( AStream, AFieldBar.Pafal);
   WriteByte( AStream, EbsTxt.ToByte(AFieldBar.SpecReg) );
 
-  {wielkoœæ podpisu, odstêp podpisu}
+  {size and space of signature}
   AByte := 0;
   SetBit(AByte, 7, AFieldBar.SmallSign);
   SetBit(AByte, 6, AFieldBar.LargeSignSpace);
   WriteByte(AStream, AByte);
 
-  {wartoœæ kodu}
+  {code content}
   AEndAddr := 0;
   for i:=0 to Length(AFieldBar.Value)-1 do
   begin
@@ -268,41 +273,31 @@ begin
     ABuff[i+256] := Byte( AFieldBar.Value[i+1] );
   end;
   ABuff[AEndAddr+257] := 0;
-  AStream.Write(ABuff, 511);
+  AStream.Write(ABuff, 512);
 end;
 //==============================================================================
 
 procedure TEbsT03Saver.SaveGraph(AStream: TStream; AField: TEbsField);
 var
-//  ABmp: TBmpFile;
   ABitmap: TBitmap;
   AFieldGraph: TEbsGraphicField;
   Image: TBoolImage;
-  DividedWord: TWordBytes;
 begin
   AFieldGraph := AField as TEbsGraphicField;
-  {jakieœ wartoœci}
-  WriteUInt16(AStream, 0);
-  WriteByte(AStream, 2);
+
   AStream.Seek(17, soFromCurrent);
   WriteByte(AStream, $FE);
 
-  {wysokoœæ i d³ugoœæ grafiki}
+  {height and width of graphics}
   WriteByte(AStream, AFieldGraph.Height);
   WriteUInt16(AStream, AFieldGraph.Width);
 
-  {odstêpy}
-  DividedWord:= TWordBytes(AFieldGraph.FrontSpace);
-  WriteByte(AStream, DividedWord.byte1);
-  WriteByte(AStream, DividedWord.byte2);
-  DividedWord:= TWordBytes(AFieldGraph.BackSpace);
-  WriteByte(AStream, DividedWord.byte1);
-  WriteByte(AStream, DividedWord.byte2);
-  WriteByte(AStream, $00);
+  {front and back space}
+  AStream.WriteData(AFieldGraph.FrontSpace, 2);
+  AStream.WriteData(AFieldGraph.BackSpace, 2);
 
-  {grafika}
-  AStream.Seek(1, soFromCurrent);
-
+  {graphics}
+  AStream.Seek(2, soFromCurrent);
 
   ABitmap := TBitmap.Create;
   try
@@ -310,11 +305,8 @@ begin
     Image := AFieldGraph.Image;
     CopyImageToBitmap(Image, ABitmap, AFieldGraph);
     ABitmap.SaveToStream(AStream);
-    AStream.Seek(-1, soFromEnd);
-
   finally
    FreeAndNil(ABitmap);
-
   end;
 end;
 //==============================================================================
@@ -335,23 +327,22 @@ begin
         ABitmap.Canvas.Pixels[X,Y] := clWhite;
 
 end;
+
 //==============================================================================
 procedure TEbsT03Saver.SaveOtherTxt(AStream: TStream; AField: TEbsField);
 var
   i: Integer;
-  ABuff: array [0..14] of Byte;
+  ABuff: array [0..15] of Byte;
   AFieldOTxt: TEbsOtherTxtField;
 begin
   AFieldOTxt := AField as TEbsOtherTxtField;
-  AStream.Seek(2, soFromCurrent);
-  WriteByte(AStream,$03);
   AStream.Seek(19, soFromCurrent);
 
-  {odstêpy}
+  {front and back space}
   AStream.WriteData(AFieldOTxt.FrontSpace, 2);
   AStream.WriteData(AFieldOTxt.BackSpace, 2);
 
-  {zawartoœæ tekstu}
+  {text content}
   for i:=0 to Length(AFieldOTxt.TextName)-1 do
     ABuff[i] := ToEbsChar(AFieldOTxt.TextName[i+1]);
   ABuff[Length(AFieldOTxt.TextName)]:=0;

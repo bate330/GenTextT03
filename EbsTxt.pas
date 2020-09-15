@@ -51,7 +51,6 @@ type
 
   private
     FTxtHeight: Byte;
-    FFirstFieldLength: TBytes;
     function GetCount: Integer;
     procedure SetTxtHeight(const Value: Byte);
 
@@ -62,7 +61,6 @@ type
     function Clone(AOwner: TObject): TObject; override;
     procedure CopyTo(ADest: TObject); override;
     procedure SortByLeft;
-    procedure SetFirstFieldLength(Value: TBytes);
     procedure SetLengthFieldLength(AArray: TBytes; ALength: Integer);
 
     procedure Save(var ADataQueue: TQueue<TArray<Byte>>; const ANameLen: Integer);
@@ -76,8 +74,6 @@ type
     property Items[Index: Integer]: TEbsField read GetItem; default;
     property Count: Integer read GetCount;
     property TxtHeight: Byte read FTxtHeight write SetTxtHeight;
-    property FirstFieldLength: TBytes read FFirstFieldLength write SetFirstFieldLength;
-
   end;
 
 //------------------------------------------------------------------------------
@@ -490,12 +486,6 @@ end;
 procedure TEbsFields.SetLengthFieldLength(AArray: TBytes; ALength: Integer);
 begin
    SetLength(AArray,ALength);
-end;
-
-//------------------------------------------------------------------------------
-procedure TEbsFields.SetFirstFieldLength(Value: TBytes);
-begin
-  FFirstFieldLength := Value;
 end;
 
 //------------------------------------------------------------------------------
